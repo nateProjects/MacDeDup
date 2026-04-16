@@ -1,4 +1,4 @@
-# MacDeDup — macOS Space Saver
+# MacDeDup — MacOS Space Saver
 
 MacDeDup is a TUI / command-line app that reclaims disk space used by duplicate files — without removing any files.
 
