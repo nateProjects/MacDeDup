@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build (arm64)
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Build (x86_64)
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Create universal binary
+        run: |
+          lipo -create \
+            target/aarch64-apple-darwin/release/MacDeDup \
+            target/x86_64-apple-darwin/release/MacDeDup \
+            -output MacDeDup
+          tar czf MacDeDup-${{ github.ref_name }}-macos-universal.tar.gz MacDeDup
+          shasum -a 256 MacDeDup-${{ github.ref_name }}-macos-universal.tar.gz > MacDeDup-${{ github.ref_name }}-macos-universal.tar.gz.sha256
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            MacDeDup-${{ github.ref_name }}-macos-universal.tar.gz
+            MacDeDup-${{ github.ref_name }}-macos-universal.tar.gz.sha256
+          generate_release_notes: true
