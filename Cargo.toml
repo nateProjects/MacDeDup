@@ -1,0 +1,24 @@
+[package]
+name = "macdedup"
+version = "0.1.0"
+edition = "2021"
+description = "Reclaim disk space using APFS space-saving clones"
+
+[[bin]]
+name = "MacDeDup"
+path = "src/main.rs"
+
+[dependencies]
+anyhow      = "1"
+blake3      = "1"
+bytesize    = "1"
+clap        = { version = "4", features = ["derive"] }
+crossbeam-channel = "0.5"
+crossterm   = "0.28"
+filetime    = "0.2"
+libc        = "0.2"
+rayon       = "1"
+ratatui     = "0.29"
+reflink     = "0.1"
+walkdir     = "2"
+xattr       = "1"
