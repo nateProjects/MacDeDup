@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use blake3::Hasher;
 use crossbeam_channel::Sender;
-use jwalk::WalkDir;
 use rayon::prelude::*;
+use walkdir::WalkDir;
 
 use crate::types::{FileGroup, FileInfo, ScanMessage, ScanPhase};
 
@@ -28,7 +28,7 @@ fn scan_inner(
     scan_library: bool,
     tx: &Sender<ScanMessage>,
 ) -> anyhow::Result<()> {
-    // ── Phase 1: Walk — parallel directory traversal via jwalk ────────────────
+    // ── Phase 1: Walk ─────────────────────────────────────────────────────────
     tx.send(ScanMessage::Phase(ScanPhase::Walking)).ok();
 
     let mut all_files: Vec<FileInfo> = Vec::new();
@@ -37,64 +37,37 @@ fn scan_inner(
     for root in &paths {
         for entry in WalkDir::new(root)
             .follow_links(false)
-            .process_read_dir(move |_depth, _path, _state, children| {
-                // Drop excluded directories before jwalk descends into them.
-                children.retain(|dir_entry_result| {
-                    dir_entry_result.as_ref().map_or(true, |e| {
-                        // Use stat-based type so DT_UNKNOWN entries (NFS/SMB/FUSE)
-                        // are correctly identified as directories and filtered.
-                        let is_dir = e.metadata().map_or(false, |m| m.is_dir());
-                        if !is_dir {
-                            return true;
-                        }
-                        let path = e.path();
-                        let name = e.file_name().to_string_lossy();
-                        let name = name.as_ref();
-                        if is_package_dir(name) {
-                            return false;
-                        }
-                        if path.parent().map_or(false, |p| p == Path::new("/")) {
-                            if matches!(name, "System" | "dev" | "private" | "cores" | "proc") {
-                                return false;
-                            }
-                        }
-                        if !scan_library && is_library_dir(&path) {
-                            return false;
-                        }
-                        true
-                    })
-                });
-            })
+            .into_iter()
+            .filter_entry(|e| !is_excluded(e, scan_library))
         {
             let entry = match entry {
                 Ok(e) => e,
                 Err(_) => continue,
             };
 
+            if !entry.file_type().is_file() {
+                continue;
+            }
+
             let meta = match entry.metadata() {
                 Ok(m) => m,
                 Err(_) => continue,
             };
-
-            if !meta.file_type().is_file() {
-                continue;
-            }
 
             let size = meta.len();
             if size < min_size {
                 continue;
             }
 
-            let path = entry.path();
-
             // Skip locked / immutable files — clonefile can't safely replace them.
-            let flags = bsd_flags(&path);
+            // UF_IMMUTABLE = 0x0002, SF_IMMUTABLE = 0x00020000
+            let flags = bsd_flags(entry.path());
             if flags & 0x0002 != 0 || flags & 0x0002_0000 != 0 {
                 continue;
             }
 
             all_files.push(FileInfo {
-                path,
+                path: entry.path().to_path_buf(),
                 size,
                 inode: meta.ino(),
                 device: meta.dev(),
@@ -121,9 +94,8 @@ fn scan_inner(
     }
 
     // Flatten to one list of candidates (files that share a size with ≥1 other).
-    // Previously we parallelised across size-groups (sequential within each group),
-    // so a single large group (e.g. 3,000 JPEGs at the same size) used one thread.
-    // Flattening here lets rayon schedule every individual file independently.
+    // Flattening lets rayon schedule every individual file independently in
+    // phases 3 and 4, rather than one thread per size-group.
     let candidates: Vec<FileInfo> = by_size
         .into_values()
         .filter(|g| g.len() > 1 && !all_same_inode(g))
@@ -264,6 +236,33 @@ fn hash_full(path: &Path) -> Option<[u8; 32]> {
         }
     }
     Some(*h.finalize().as_bytes())
+}
+
+/// Returns true if walkdir should not descend into (or yield) this entry.
+fn is_excluded(entry: &walkdir::DirEntry, scan_library: bool) -> bool {
+    let path = entry.path();
+
+    let name = match path.file_name() {
+        Some(n) => n.to_string_lossy(),
+        None => return false,
+    };
+    let name = name.as_ref();
+
+    if entry.file_type().is_dir() && is_package_dir(name) {
+        return true;
+    }
+
+    if path.parent().map_or(false, |p| p == Path::new("/")) {
+        if matches!(name, "System" | "dev" | "private" | "cores" | "proc") {
+            return true;
+        }
+    }
+
+    if !scan_library && is_library_dir(path) {
+        return true;
+    }
+
+    false
 }
 
 /// macOS package bundle extensions — directories Finder displays as single files.
