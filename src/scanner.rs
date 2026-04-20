@@ -41,7 +41,10 @@ fn scan_inner(
                 // Drop excluded directories before jwalk descends into them.
                 children.retain(|dir_entry_result| {
                     dir_entry_result.as_ref().map_or(true, |e| {
-                        if !e.file_type().is_dir() {
+                        // Use stat-based type so DT_UNKNOWN entries (NFS/SMB/FUSE)
+                        // are correctly identified as directories and filtered.
+                        let is_dir = e.metadata().map_or(false, |m| m.is_dir());
+                        if !is_dir {
                             return true;
                         }
                         let path = e.path();
@@ -68,14 +71,14 @@ fn scan_inner(
                 Err(_) => continue,
             };
 
-            if !entry.file_type().is_file() {
-                continue;
-            }
-
             let meta = match entry.metadata() {
                 Ok(m) => m,
                 Err(_) => continue,
             };
+
+            if !meta.file_type().is_file() {
+                continue;
+            }
 
             let size = meta.len();
             if size < min_size {
