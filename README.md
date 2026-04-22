@@ -6,6 +6,8 @@ It works by replacing duplicate files with APFS space-saving clones. Each clone 
 
 Inspired by [fclones](https://github.com/pkolaczk/fclones) and [Hyperspace](https://apps.apple.com/app/hyperspace/id1537774279).
 
+Note: Claude Code was used to help convert this from Python to Rust for more speedy scanning.
+
 ---
 
 ## Usage
