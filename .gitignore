@@ -2,3 +2,4 @@
 MacDeDup
 .DS_Store
 *.dat
+**/*.rs.bk

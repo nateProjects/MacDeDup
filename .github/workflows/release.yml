@@ -39,3 +39,27 @@ jobs:
             MacDeDup-${{ github.ref_name }}-macos-universal.tar.gz
             MacDeDup-${{ github.ref_name }}-macos-universal.tar.gz.sha256
           generate_release_notes: true
+
+  update-tap:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Homebrew formula
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          URL="https://github.com/nateProjects/MacDeDup/releases/download/${TAG}/MacDeDup-${TAG}-macos-universal.tar.gz"
+          SHA256=$(curl -sL "${URL}.sha256" | awk '{print $1}')
+
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/nateProjects/homebrew-tap.git" tap
+          cd tap
+
+          sed -i "s|url \".*\"|url \"${URL}\"|" Formula/macdedup.rb
+          sed -i "s|sha256 \".*\"|sha256 \"${SHA256}\"|" Formula/macdedup.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/macdedup.rb
+          git commit -m "Update macdedup to ${TAG}"
+          git push
