@@ -6,7 +6,7 @@ It works by replacing duplicate files with APFS space-saving clones. Each clone 
 
 Inspired by [fclones](https://github.com/pkolaczk/fclones) and [Hyperspace](https://apps.apple.com/app/hyperspace/id1537774279).
 
-Note: Claude Code was used to help convert this from Python to Rust for more speedy scanning.
+![](images/MacDeDup.png)
 
 ---
 
@@ -19,6 +19,10 @@ MacDeDup --dry-run <PATH>            # preview savings without modifying anythin
 MacDeDup --scan-library <PATH>       # include ~/Library in the scan (see below)
 MacDeDup --min-size <BYTES> <PATH>   # skip files smaller than N bytes (default: 1)
 ```
+
+Upon initial launch you may need to authorise the app in Privacy & Security
+
+![](images/Security-Bypass.png)
 
 ### TUI screens
 
@@ -110,3 +114,5 @@ ln -sf target/release/MacDeDup MacDeDup
 - [tui.rs](src/tui.rs) — interactive ratatui TUI: Scanning → Review → Reclaiming → Done state machine
 - [cli.rs](src/cli.rs) — plain-text `--no-tui` mode with in-place progress bars
 - [types.rs](src/types.rs) — shared types (`FileInfo`, `FileGroup`, `ScanMessage`, `ReclaimMessage`)
+
+Note: Claude Code was used to help convert this from Python to Rust for more speedy scanning.
